@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AI Post Generator — Standalone</title>
+<style>
+  :root{
+    --primary:#6c5ce7;
+    --accent:#00b894;
+    --bg:#f8f9fa;
+    --card:#f1f1f1;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+  body{background:linear-gradient(180deg,#ffffff 0%,var(--bg) 100%);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;}
+  .wrap{width:100%;max-width:760px;background:white;border-radius:12px;box-shadow:0 10px 30px rgba(12,20,30,.08);padding:16px;margin:auto;}
+  header{display:flex;gap:12px;align-items:center}
+  .logo{width:60px;height:60px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;flex-shrink:0;}
+  h1{margin:0;font-size:18px;}
+  p.lead{margin:6px 0 12px;color:#444;font-size:14px;}
+  textarea{width:100%;min-height:80px;padding:12px;border-radius:10px;border:1px solid #e6e9ee;font-size:14px;resize:vertical;box-sizing:border-box}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  button.primary{background:var(--primary);border:none;color:white;padding:12px 16px;border-radius:10px;cursor:pointer;font-weight:600;font-size:14px;}
+  button.ghost{background:#fff;border:1px solid #e6e9ee;padding:10px 14px;border-radius:10px;cursor:pointer;font-size:14px;}
+  #loading{display:none;color:#444;margin-top:12px;font-size:14px;}
+  .results{margin-top:16px;}
+  .post-card{
+    background:var(--card);
+    padding:16px;
+    border-radius:10px;
+    margin-bottom:16px;
+    white-space:pre-wrap;
+    font-size:14px;
+    line-height:1.5;
+    overflow:visible;
+    word-wrap:break-word;
+    overflow-wrap:break-word;
+    border:1px solid rgba(0,0,0,0.1);
+    min-height:auto;
+    max-height:none;
+  }
+  .post-content{
+    width:100%;
+    display:block;
+    margin-bottom:12px;
+    overflow:visible;
+  }
+  .post-actions{
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px solid rgba(0,0,0,0.1);
+  }
+  
+  /* Mobile-specific fixes */
+  @media (max-width: 768px) {
+    body {
+      padding:12px;
+      align-items:flex-start;
+      min-height:100vh;
+      height:auto;
+    }
+    .wrap {
+      padding:12px;
+      margin:0;
+    }
+    header {
+      flex-direction:column;
+      text-align:center;
+      gap:8px;
+    }
+    .logo {
+      width:50px;
+      height:50px;
+      font-size:16px;
+    }
+    h1 {
+      font-size:16px;
+    }
+    p.lead {
+      font-size:13px;
+    }
+    .controls {
+      flex-direction:column;
+      align-items:stretch;
+    }
+    button.primary, button.ghost {
+      width:100%;
+      text-align:center;
+    }
+    .post-card {
+      padding:12px;
+      margin-bottom:12px;
+    }
+    .post-actions {
+      flex-direction:column;
+    }
+    .post-actions button {
+      width:100%;
+    }
+  }
+  
+  /* Extra small mobile fixes */
+  @media (max-width: 480px) {
+    body {
+      padding:8px;
+    }
+    .wrap {
+      padding:10px;
+      border-radius:8px;
+    }
+    .post-card {
+      padding:10px;
+    }
+    textarea {
+      min-height:70px;
+      padding:10px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap" role="main">
+    <header>
+      <div class="logo">AI</div>
+      <div>
+        <h1>AI Post Generator</h1>
+        <p class="lead">Enter a content idea and optional story — get 5 ready-to-use social media posts.</p>
+      </div>
+    </header>
+
+    <div style="margin-top:14px">
+      <textarea id="idea" placeholder="Enter your content idea or question"></textarea>
+    </div>
+    <div style="margin-top:12px">
+      <textarea id="story" placeholder="Optional: Personal story (Pain → Turning Point → Freedom)"></textarea>
+    </div>
+
+    <div class="controls">
+      <button id="generate" class="primary">Generate 5 Posts</button>
+      <button id="downloadAll" class="ghost">Download All (.txt)</button>
+      <div id="loading">Generating...</div>
+    </div>
+
+    <div class="results" id="results" aria-live="polite"></div>
+  </div>
+
+<script>
+// =========================================================================
+// ⚠️ ACTION REQUIRED: Replace this placeholder with your deployed Web App URL
+// =========================================================================
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzHUeN1T8-Fmoqri0ksfudA-QFOSsOne73qm9Iy3q_HeYH5m6coJiNAY3DBDBG6IKHs/exec"; 
+// The API Key and Model are now securely on the backend (Code.gs)
+// The original OPENROUTER_API_KEY, OPENROUTER_URL, and MODEL_NAME variables are removed.
+// The buildMasterPrompt function is also removed and moved to the backend.
+
+const ideaEl = document.getElementById("idea");
+const storyEl = document.getElementById("story");
+const generateBtn = document.getElementById("generate");
+const loadingEl = document.getElementById("loading");
+const resultsEl = document.getElementById("results");
+const downloadBtn = document.getElementById("downloadAll");
+
+/**
+ * Utility function to split the raw AI text into individual posts.
+ * This logic remains on the frontend.
+ */
+function splitNumbered(output){
+  console.log("Raw output length:", output.length);
+  const posts = [];
+  let currentPost = '';
+  let currentNumber = 0;
+  const lines = output.split('\n');
+  
+  for (let line of lines) {
+    const numberMatch = line.match(/^(\d+)[\.\)]\s*(.*)/);
+    
+    if (numberMatch) {
+      const postNumber = parseInt(numberMatch[1]);
+      
+      if (currentPost.trim() && currentNumber > 0) {
+        posts.push(currentPost.trim());
+        currentPost = '';
+      }
+      
+      currentNumber = postNumber;
+      currentPost = line + '\n';
+    } else if (currentNumber > 0) {
+      currentPost += line + '\n';
+    }
+  }
+  
+  if (currentPost.trim() && currentNumber > 0) {
+    posts.push(currentPost.trim());
+  }
+  
+  console.log("Found posts:", posts.length);
+  
+  if (posts.length < 5) {
+    console.log("Numbered splitting failed, trying alternative methods");
+    const doubleNewlineSplit = output.split(/\n\s*\n/).filter(p => p.trim().length > 50);
+    if (doubleNewlineSplit.length >= 5) {
+      return doubleNewlineSplit.slice(0, 5);
+    }
+    return [output];
+  }
+  
+  return posts.slice(0, 5);
+}
+
+/**
+ * New fetch logic: Send data as FormData to the Google Apps Script Web App URL.
+ */
+async function generatePosts(){
+  const idea = ideaEl.value.trim();
+  const story = storyEl.value.trim();
+  if(!idea){ alert("Please enter a content idea."); return; }
+  if(WEB_APP_URL === "YOUR_WEB_APP_URL_HERE"){ alert("Please update the WEB_APP_URL in the script."); return; }
+
+  generateBtn.disabled = true;
+  loadingEl.style.display = "inline-block";
+  resultsEl.innerHTML = "";
+
+  try {
+    // 1. Create FormData object
+    const formData = new FormData();
+    formData.append('idea', idea);
+    formData.append('story', story);
+    
+    // 2. Fetch with FormData (bypasses CORS preflight)
+    const resp = await fetch(WEB_APP_URL, {
+      method: "POST",
+      // IMPORTANT: Do NOT set Content-Type header when sending FormData.
+      // The browser sets it automatically to 'multipart/form-data' with the correct boundary.
+      body: formData
+    });
+
+    // 3. Handle response from Google Apps Script Backend
+    if(!resp.ok) throw new Error(`Network response was not ok. Status: ${resp.status}`);
+    const data = await resp.json();
+    
+    if (data.success === false) {
+        throw new Error(data.error || "An unknown error occurred on the backend.");
+    }
+    
+    const content = data.content || "";
+    console.log("Full content length:", content.length);
+    
+    const posts = splitNumbered(content);
+
+    // Clear previous results
+    resultsEl.innerHTML = '';
+    
+    if (posts.length === 0) {
+      resultsEl.innerHTML = '<div style="color:red;">No posts were generated. Please try again.</div>';
+      return;
+    }
+    
+    // 4. Render posts
+    posts.forEach((post, index) => {
+      const card = document.createElement("div");
+      card.className = "post-card";
+      
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "post-content";
+      contentDiv.textContent = post;
+      card.appendChild(contentDiv);
+
+      const actions = document.createElement("div");
+      actions.className = "post-actions";
+
+      const copyBtn = document.createElement("button");
+      copyBtn.textContent = "Copy";
+      copyBtn.className = "ghost";
+      copyBtn.onclick = async () => {
+        await navigator.clipboard.writeText(post);
+        copyBtn.textContent = "Copied!";
+        setTimeout(()=>copyBtn.textContent="Copy",1500);
+      };
+
+      const shareBtn = document.createElement("button");
+      shareBtn.textContent = "Share";
+      shareBtn.className = "ghost";
+      shareBtn.onclick = async () => {
+        if(navigator.share){
+          await navigator.share({ text: post });
+        } else {
+          await navigator.clipboard.writeText(post);
+          alert("Share not supported. Copied to clipboard.");
+        }
+      };
+
+      actions.appendChild(copyBtn);
+      actions.appendChild(shareBtn);
+      card.appendChild(actions);
+      resultsEl.appendChild(card);
+      
+      console.log(`Post ${index + 1} length:`, post.length);
+    });
+
+  } catch (err) {
+    console.error("Error:", err);
+    resultsEl.innerHTML = `<div style="color:red;">Error: ${err.message}</div>`;
+  }
+
+  generateBtn.disabled = false;
+  loadingEl.style.display = "none";
+}
+
+downloadBtn.onclick = () => {
+  const contents = document.querySelectorAll(".post-content");
+  if(!contents.length){ alert("No posts to download."); return; }
+  const text = Array.from(contents).map(c=>c.textContent).join("\n\n");
+  const blob = new Blob([text], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "posts.txt";
+  a.click();
+};
+
+generateBtn.addEventListener("click", generatePosts);
+
+// Mobile-specific: Ensure proper scrolling and layout
+document.addEventListener('DOMContentLoaded', function() {
+  // Force mobile viewport recalculation
+  const viewport = document.querySelector('meta[name="viewport"]');
+  if (viewport) {
+    viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=5');
+  }
+});
+</script>
+</body>
+</html>
